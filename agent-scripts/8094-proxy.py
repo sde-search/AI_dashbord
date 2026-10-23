@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import httpx
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import StreamingResponse
 import uvicorn
 
 # ── Upstreams ──────────────────────────────────────────────────────
@@ -18,6 +19,7 @@ UPSTREAM_TIMEOUT = 180
 # ── Rest unchanged (DB, logging, disconnect handling) ─────────────
 DB_PATH = Path.home() / "token-stats" / "data" / "tokens.db"
 AGENT_TYPE = "codereview"
+PORT = 8094
 DB_TIMEOUT = 5.0
 STALE_SECONDS = 300
 AGENT_MAX_TOKENS = 768
@@ -140,11 +142,10 @@ async def _try_upstream_with_fallback(method, url_path, body, headers, disconnec
 
         try:
             resp = await client.request(method=method, url=url, content=req_body, headers=req_headers)
-            if resp.status_code >= 500 or resp.status_code in (429, 402, 401):
-                if attempt == 0:
-                    used_fallback = True
-                    print(f"[{AGENT_TYPE}] Polza returned {resp.status_code}, falling back to Ollama", flush=True)
-                    continue
+            if resp.status_code != 200 and attempt == 0:
+                used_fallback = True
+                print(f"[{AGENT_TYPE}] Polza returned {resp.status_code}, falling back to Ollama", flush=True)
+                continue
             return resp, used_fallback
         except (httpx.TimeoutException, httpx.ConnectError, httpx.RemoteProtocolError):
             if attempt == 0:
@@ -178,6 +179,7 @@ async def proxy(request: Request, path: str):
     is_chat = path.endswith("/chat/completions") and request.method == "POST"
     t_start = datetime.now(timezone.utc)
 
+    request_body = body
     if is_chat and body:
         try:
             req_json = json.loads(body)
@@ -228,6 +230,13 @@ async def proxy(request: Request, path: str):
                 u = data.get("usage") or {}
                 pt = u.get("prompt_tokens", 0); ct = u.get("completion_tokens", 0)
                 model = data.get("model", "unknown")
+                if pt == 0 and ct == 0:
+                    # Fallback: count tokens by length
+                    pt = max(1, len(str(request_body)) // 4)
+                    choice = (data.get("choices") or [{}])[0]
+                    msg = choice.get("message", {}) or {}
+                    content = msg.get("content", "") or ""
+                    ct = max(1, len(content) // 4) if content else 5
                 if model in ("unknown", "", "-") and pt == 0 and ct == 0: _phase2_tool(row_id, elapsed)
                 else: _phase2_ok(row_id, model, pt, ct, elapsed, "local_moe" if used_fallback else "polza_api", 1 if used_fallback else 0)
             except Exception: _phase2_tool(row_id, elapsed)
