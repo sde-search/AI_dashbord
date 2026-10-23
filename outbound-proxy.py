@@ -167,7 +167,7 @@ def _phase1_insert(agent_type, task_preview: str) -> int:
     _mark_stale_as_timeout()
     with sqlite3.connect(str(DB_PATH), timeout=DB_TIMEOUT) as conn:
         cur = conn.execute(
-            "INSERT INTO token_log (ts, agent_name, provider_type, model, prompt_tokens, completion_tokens, cost, status, task_preview) VALUES (?, ?, ?, 0, 0, 0, 'running', ?)",
+            "INSERT INTO token_log (ts, agent_name, provider_type, model, prompt_tokens, completion_tokens, cost, status, task_preview) VALUES (?, ?, ?, ?, 0, 0, 0, 'running', ?)",
             (ts, agent_type, "polza_api", "", task_preview),
         )
         conn.commit()
@@ -177,8 +177,8 @@ def _phase1_insert(agent_type, task_preview: str) -> int:
 def _phase2_complete(row_id: int, model: str, pt: int, ct: int, cost: float, duration_ms: int, target: str = ""):
     with sqlite3.connect(str(DB_PATH), timeout=DB_TIMEOUT) as conn:
         conn.execute(
-            "UPDATE token_log SET status='completed', provider_type='polza_api', model=?, prompt_tokens=?, completion_tokens=?, cost=?, duration_ms=?, endpoint_target=? WHERE id=? AND status='running'",
-            (model, pt, ct, cost, duration_ms, target, row_id),
+            "UPDATE token_log SET status='completed', provider_type='polza_api', model=?, prompt_tokens=?, completion_tokens=?, total_tokens=? + ?, cost=?, duration_ms=?, endpoint_target=? WHERE id=? AND status='running'",
+            (model, pt, ct, tot, cost, duration_ms, target, row_id),
         )
         conn.commit()
 
