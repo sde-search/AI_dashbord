@@ -168,6 +168,19 @@ def restart_proxies():
         os.system(f"cd /home/hermes/token-stats/agent-scripts && nohup python3 {p} > /dev/null 2>&1 &")
     return {"status": "ok", "message": "All proxies restarted"}
 
+# ── API: Download agent log ────────────────────────────────────
+@app.get("/api/log/download")
+def download_log(tail: int = Query(0)):
+    log_path = Path.home() / ".hermes" / "logs" / "agent.log"
+    if not log_path.exists():
+        return {"error": "Log file not found"}
+    if tail > 0:
+        from fastapi.responses import PlainTextResponse
+        lines = subprocess.check_output(["tail", "-" + str(tail), str(log_path)]).decode()
+        return PlainTextResponse(lines)
+    from fastapi.responses import FileResponse
+    return FileResponse(str(log_path), media_type="text/plain", filename="agent.log")
+
 # ── HTML Dashboard ──────────────────────────────────────────────
 HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="ru">
@@ -304,6 +317,8 @@ function render() {
           <button class="danger" onclick="post('/api/control/emergency-stop').then(render)">🛑 Emergency Stop & Restart</button>
           <button onclick="post('/api/control/unload-vram').then(render)">🧹 Unload VRAM</button>
           <button onclick="post('/api/control/restart-proxies').then(render)">🔄 Restart Proxies</button>
+          <button onclick="window.open('/api/log/download','_blank')">📥 Download Agent Log</button>
+          <button onclick="window.open('/api/log/download?tail=200','_blank')">📋 Last 200 Lines</button>
         </div>
         <h2>Agent Status</h2>
         <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">${renderAgentStatus(status.agents, stats.totals)}</div>

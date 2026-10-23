@@ -5,7 +5,7 @@ Usage: from ask_subagent import ask_devops, ask_network, ask_backup, ask_fs, ask
 import json, urllib.request, urllib.error
 
 PROXY_BASE = "http://127.0.0.1"
-MODEL = "qwen3.8-flash-next-coder-iq1_m"
+MODEL = "deepseek/deepseek-v4-flash-0731"  # routed through 8090->8084->Polza AI
 TIMEOUT = 120
 
 def _ask(port: int, prompt: str) -> str:

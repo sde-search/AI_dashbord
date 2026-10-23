@@ -1,0 +1,12 @@
+[Unit]
+Description=Subagent Proxy on port %i
+After=network.target
+
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=3
+ExecStart=/usr/bin/python3 /home/hermes/token-stats/agent-scripts/%i-proxy.py
+
+[Install]
+WantedBy=agents-proxy.target
