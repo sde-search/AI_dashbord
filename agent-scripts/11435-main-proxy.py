@@ -105,9 +105,9 @@ async def proxy(request: Request, path: str):
                 code = 502
             finally:
                 dur = int((datetime.now(timezone.utc) - t_start).total_seconds() * 1000)
-                if not tt and not pt and not ct:
-                    pt = max(1, len(body) // 4) if body else 80
-                    ct = 5
+                if not pt or not ct:
+                    if not pt: pt = max(1, len(body) // 4) if body else 80
+                    if not ct: ct = 5
                     tt = pt + ct
                 log_token("main", "local_moe", model_name, False, pt, ct, tt, dur, code, 1)
                 set_status("main", "idle", model_name, "local_moe")
@@ -130,6 +130,15 @@ async def proxy(request: Request, path: str):
             ct = abs(usage.get("completion_tokens", usage.get("eval_count", 0)))
             tt = abs(usage.get("total_tokens", pt + ct))
             model_name = data.get("model", model_name)
+            if pt == 0 and ct == 0:
+                # Fallback: approximate by text length
+                pt = max(1, len(body) // 4) if body else 80
+                content = ""
+                for ch in (data.get("choices") or []):
+                    msg = ch.get("message") or {}
+                    content += msg.get("content") or ""
+                ct = max(1, len(content) // 4) if content else 5
+                tt = pt + ct
         except Exception:
             pass
 
